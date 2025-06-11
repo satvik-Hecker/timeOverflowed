@@ -1,18 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Load today's data
     loadTodayData();
-
-    // Set up reset button
     document.getElementById('resetButton').addEventListener('click', resetTodayData);
-
-    // Set up tabs
     setupTabs();
+    setupTrackingStatus();
 });
 
 function loadTodayData() {
-    const dateKey = new Date().toISOString().slice(0,10);
+    const dateKey = new Date().toISOString().slice(0, 10);
     
     chrome.storage.local.get([dateKey], (result) => {
+        if (chrome.runtime.lastError) return;
         const data = result[dateKey] || {};
         updateUI(data);
     });
@@ -22,52 +19,43 @@ function updateUI(data) {
     const sitesList = document.getElementById('sitesList');
     const totalTimeElement = document.getElementById('totalTime');
     
-    // Clear existing content
     sitesList.innerHTML = '';
     
     let totalSeconds = 0;
     
-    // Sort sites by time spent (descending)
-    const sortedSites = Object.entries(data).sort((a, b) => 
-        b[1].totalSeconds - a[1].totalSeconds
-    );
+    const sortedSites = Object.entries(data)
+        .filter(([_, siteData]) => siteData.totalSeconds > 0)
+        .sort((a, b) => b[1].totalSeconds - a[1].totalSeconds);
     
-    // Update total time
-    sortedSites.forEach(([_, siteData]) => {
+    let othersSeconds = 0;
+    sortedSites.forEach(([_, siteData], index) => {
         totalSeconds += siteData.totalSeconds;
+        if (index >= 7) {
+            othersSeconds += siteData.totalSeconds;
+        }
     });
     
     const totalHours = Math.floor(totalSeconds / 3600);
     const totalMinutes = Math.floor((totalSeconds % 3600) / 60);
     totalTimeElement.textContent = `${totalHours}h ${totalMinutes}m`;
     
-    // Update sites list
-    sortedSites.forEach(([domain, siteData], index) => {
-        // Add miscellaneous header after top 7 sites
-        if (index === 7) {
-            const miscHeader = document.createElement('div');
-            miscHeader.className = 'misc-header';
-            miscHeader.textContent = 'Miscellaneous';
-            sitesList.appendChild(miscHeader);
-        }
-        
+    sortedSites.slice(0, 7).forEach(([domain, siteData], index) => {
         const siteItem = document.createElement('div');
         siteItem.className = 'site-item';
         
-        // Add rank
         const rank = document.createElement('div');
         rank.className = 'site-rank';
         rank.textContent = (index + 1).toString();
         siteItem.appendChild(rank);
         
-        // Create site info container
         const siteInfo = document.createElement('div');
         siteInfo.className = 'site-info';
         
         const siteName = document.createElement('span');
         siteName.className = 'site-name';
-        // Remove 'www.' from domain
-        siteName.textContent = domain.replace(/^www\./, '');
+        const displayName = domain.replace(/^www\./, '');
+        siteName.textContent = displayName.length > 25 ? displayName.substring(0, 22) + '...' : displayName;
+        siteName.title = displayName;
         
         const siteTime = document.createElement('span');
         siteTime.className = 'site-time';
@@ -79,13 +67,50 @@ function updateUI(data) {
         
         sitesList.appendChild(siteItem);
     });
+
+    if (othersSeconds > 0) {
+        const othersHeader = document.createElement('div');
+        othersHeader.className = 'misc-header';
+        othersHeader.textContent = 'Others';
+        sitesList.appendChild(othersHeader);
+
+        const othersItem = document.createElement('div');
+        othersItem.className = 'site-item';
+        
+        const othersInfo = document.createElement('div');
+        othersInfo.className = 'site-info';
+        
+        const othersName = document.createElement('span');
+        othersName.className = 'site-name';
+        othersName.textContent = 'Other Sites';
+        
+        const othersTime = document.createElement('span');
+        othersTime.className = 'site-time';
+        const othersHours = Math.floor(othersSeconds / 3600);
+        const othersMinutes = Math.floor((othersSeconds % 3600) / 60);
+        othersTime.textContent = `${othersHours}h ${othersMinutes}m`;
+        
+        othersInfo.appendChild(othersName);
+        othersInfo.appendChild(othersTime);
+        othersItem.appendChild(othersInfo);
+        
+        sitesList.appendChild(othersItem);
+    }
+
+    if (sortedSites.length === 0) {
+        const noDataMessage = document.createElement('div');
+        noDataMessage.className = 'no-data-message';
+        noDataMessage.textContent = 'No tracking data for today';
+        sitesList.appendChild(noDataMessage);
+    }
 }
 
 function resetTodayData() {
     if (confirm('Are you sure you want to reset today\'s tracking data?')) {
         chrome.runtime.sendMessage({action: "resetToday"}, (response) => {
+            if (chrome.runtime.lastError) return;
             if (response.success) {
-                loadTodayData(); // Reload the data
+                loadTodayData();
             }
         });
     }
@@ -98,9 +123,7 @@ function setupTabs() {
     
     tabButtons.forEach(button => {
         button.addEventListener('click', () => {
-            // Remove active class from all buttons
             tabButtons.forEach(btn => btn.classList.remove('active'));
-            // Add active class to clicked button
             button.classList.add('active');
             
             const tab = button.dataset.tab;
@@ -118,42 +141,34 @@ function setupTabs() {
 }
 
 function loadWeeklyData() {
-    // Get the last 7 days
     const today = new Date();
     const dates = Array.from({length: 7}, (_, i) => {
         const date = new Date(today);
         date.setDate(today.getDate() - i);
-        return date.toISOString().slice(0,10);
+        return date.toISOString().slice(0, 10);
     }).reverse();
 
-    // Get data for all dates
     chrome.storage.local.get(dates, (result) => {
-        updateWeeklyView();
+        if (chrome.runtime.lastError) return;
+        updateWeeklyView(result);
     });
 }
 
-// Function to update weekly view
-async function updateWeeklyView() {
+function updateWeeklyView(storageData) {
     const weeklyAverage = document.getElementById('weeklyAverage');
     const weeklySitesList = document.getElementById('weeklySitesList');
     
-    // Clear previous content
     weeklySitesList.innerHTML = '';
     
     try {
-        // Get data for the last 7 days
-        const today = new Date();
         const data = {};
         let totalTime = 0;
+        let daysWithData = 0;
         
-        for (let i = 0; i < 7; i++) {
-            const date = new Date(today);
-            date.setDate(today.getDate() - i);
-            const dateKey = date.toISOString().slice(0, 10);
-            
-            const result = await chrome.storage.local.get([dateKey]);
-            if (result[dateKey]) {
-                Object.entries(result[dateKey]).forEach(([domain, info]) => {
+        Object.entries(storageData).forEach(([dateKey, dateData]) => {
+            if (dateData) {
+                daysWithData++;
+                Object.entries(dateData).forEach(([domain, info]) => {
                     if (!data[domain]) {
                         data[domain] = 0;
                     }
@@ -161,41 +176,78 @@ async function updateWeeklyView() {
                     totalTime += info.totalSeconds;
                 });
             }
-        }
+        });
         
-        // Calculate average daily time
-        const averageSeconds = Math.floor(totalTime / 7);
+        const averageSeconds = daysWithData > 0 ? Math.floor(totalTime / daysWithData) : 0;
         const averageHours = Math.floor(averageSeconds / 3600);
         const averageMinutes = Math.floor((averageSeconds % 3600) / 60);
         weeklyAverage.textContent = `${averageHours}h ${averageMinutes}m`;
         
-        // Sort domains by time spent
         const sortedDomains = Object.entries(data)
+            .filter(([_, seconds]) => seconds > 0)
             .sort(([, a], [, b]) => b - a)
-            .slice(0, 5); // Top 5 domains
+            .slice(0, 5);
         
-        // Add to weekly sites list
         sortedDomains.forEach(([domain, seconds]) => {
             const hours = Math.floor(seconds / 3600);
             const minutes = Math.floor((seconds % 3600) / 60);
             
             const siteItem = document.createElement('div');
             siteItem.className = 'site-item';
-            siteItem.innerHTML = `
-                <div class="site-info">
-                    <div class="site-name">${domain}</div>
-                    <div class="site-time">${hours}h ${minutes}m</div>
-                </div>
-            `;
+            
+            const siteInfo = document.createElement('div');
+            siteInfo.className = 'site-info';
+            
+            const siteName = document.createElement('div');
+            siteName.className = 'site-name';
+            const displayName = domain.replace(/^www\./, '');
+            siteName.textContent = displayName.length > 25 ? displayName.substring(0, 22) + '...' : displayName;
+            siteName.title = displayName;
+            
+            const siteTime = document.createElement('div');
+            siteTime.className = 'site-time';
+            siteTime.textContent = `${hours}h ${minutes}m`;
+            
+            siteInfo.appendChild(siteName);
+            siteInfo.appendChild(siteTime);
+            siteItem.appendChild(siteInfo);
             weeklySitesList.appendChild(siteItem);
         });
+
+        if (sortedDomains.length === 0) {
+            const noDataMessage = document.createElement('div');
+            noDataMessage.className = 'no-data-message';
+            noDataMessage.textContent = 'No tracking data for the past week';
+            weeklySitesList.appendChild(noDataMessage);
+        }
         
     } catch (error) {
-        console.error('Error updating weekly view:', error);
+        weeklySitesList.innerHTML = '<div class="error-message">Error loading weekly data</div>';
     }
 }
 
-// Update the weekly view when tab is clicked
-document.querySelector('[data-tab="weekly"]').addEventListener('click', () => {
-    updateWeeklyView();
-}); 
+function setupTrackingStatus() {
+    const statusIndicator = document.createElement('div');
+    statusIndicator.id = 'trackingStatus';
+    statusIndicator.className = 'tracking-status';
+    document.body.insertBefore(statusIndicator, document.body.firstChild);
+
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.type === 'STATUS_UPDATE') {
+            updateTrackingStatus(message);
+        }
+    });
+}
+
+function updateTrackingStatus(status) {
+    const indicator = document.getElementById('trackingStatus');
+    if (!indicator) return;
+
+    const isTracking = status.shouldTrack && status.isVisible && status.isFocused && status.isActive;
+    indicator.className = `tracking-status ${isTracking ? 'active' : 'inactive'}`;
+    indicator.title = `Tracking Status:
+        Active: ${status.isActive ? 'Yes' : 'No'}
+        Visible: ${status.isVisible ? 'Yes' : 'No'}
+        Focused: ${status.isFocused ? 'Yes' : 'No'}
+        Fullscreen: ${status.isFullscreen ? 'Yes' : 'No'}`;
+} 
