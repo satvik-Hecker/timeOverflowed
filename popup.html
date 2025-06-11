@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Time Overflowed</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <div class="logo">
+                    <img src="logo.png" alt="Time Overflowed Logo" class="logo-img">
+                </div>
+                <h1 class="title">timeOverflowed</h1>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="today">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Today
+            </button>
+            <button class="tab-btn" data-tab="weekly">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+                Weekly
+            </button>
+        </div>
+
+        <div class="content">
+            <!-- Today's View -->
+            <div class="view" id="todayView">
+                <!-- Total Time Card -->
+                <div class="card total-time-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Total Time Today
+                        </div>
+                        <button id="resetButton" class="reset-btn" title="Reset Today's Data">
+                            <svg class="reload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="card-content">
+                        <div class="stat-center">
+                            <div id="totalTime" class="stat-value-large">0h 0m</div>
+                            <div class="stat-label">Total Browser Time</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sites List Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            </svg>
+                            Today's Top Sites
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div id="sitesList" class="sites-list">
+                            <!-- All sites will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weekly View -->
+            <div class="view" id="weeklyView" style="display: none;">
+                <!-- Weekly Stats Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            </svg>
+                            Weekly Overview
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div class="weekly-stats">
+                            <div class="digital-wellbeing-chart">
+                                <div class="chart-container">
+                                    <div class="chart-ring" id="weeklyPieChart">
+                                        <!-- Chart will be rendered here -->
+                                    </div>
+                                    <div class="chart-center">
+                                        <div class="center-content">
+                                            <div id="weeklyAverage" class="stat-value-large">0h 0m</div>
+                                            <div class="stat-label">Daily Average</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Weekly Top Sites Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            </svg>
+                            Top Sites This Week
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div id="weeklySitesList" class="sites-list">
+                            <!-- Weekly top sites will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html> 
