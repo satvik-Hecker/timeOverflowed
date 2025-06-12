@@ -15,6 +15,36 @@ function loadTodayData() {
     });
 }
 
+function calculateDailyAverage(storageData) {
+    const today = new Date();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - 6); // Get last 7 days including today
+    
+    let totalTime = 0;
+    let daysWithData = 0;
+    
+    for (let d = new Date(weekStart); d <= today; d.setDate(d.getDate() + 1)) {
+        const dateKey = d.toISOString().slice(0, 10);
+        const dayData = storageData[dateKey] || {};
+        
+        let dayTotal = 0;
+        Object.values(dayData).forEach(siteData => {
+            dayTotal += siteData.totalSeconds || 0;
+        });
+        
+        if (dayTotal > 0) {
+            totalTime += dayTotal;
+            daysWithData++;
+        }
+    }
+    
+    return {
+        averageSeconds: daysWithData > 0 ? Math.floor(totalTime / daysWithData) : 0,
+        totalSeconds: totalTime,
+        daysWithData
+    };
+}
+
 function updateUI(data) {
     const sitesList = document.getElementById('sitesList');
     const totalTimeElement = document.getElementById('totalTime');
@@ -59,7 +89,9 @@ function updateUI(data) {
         
         const siteTime = document.createElement('span');
         siteTime.className = 'site-time';
-        siteTime.textContent = siteData.display;
+        const hours = Math.floor(siteData.totalSeconds / 3600);
+        const minutes = Math.floor((siteData.totalSeconds % 3600) / 60);
+        siteTime.textContent = `${hours}h ${minutes}m`;
         
         siteInfo.appendChild(siteName);
         siteInfo.appendChild(siteTime);
@@ -161,29 +193,25 @@ function updateWeeklyView(storageData) {
     weeklySitesList.innerHTML = '';
     
     try {
-        const data = {};
-        let totalTime = 0;
-        let daysWithData = 0;
+        const { averageSeconds, totalSeconds, daysWithData } = calculateDailyAverage(storageData);
         
-        Object.entries(storageData).forEach(([dateKey, dateData]) => {
-            if (dateData) {
-                daysWithData++;
-                Object.entries(dateData).forEach(([domain, info]) => {
-                    if (!data[domain]) {
-                        data[domain] = 0;
-                    }
-                    data[domain] += info.totalSeconds;
-                    totalTime += info.totalSeconds;
-                });
-            }
-        });
-        
-        const averageSeconds = daysWithData > 0 ? Math.floor(totalTime / daysWithData) : 0;
         const averageHours = Math.floor(averageSeconds / 3600);
         const averageMinutes = Math.floor((averageSeconds % 3600) / 60);
         weeklyAverage.textContent = `${averageHours}h ${averageMinutes}m`;
         
-        const sortedDomains = Object.entries(data)
+        // Aggregate weekly data for each domain
+        const weeklyData = {};
+        Object.entries(storageData).forEach(([_, dayData]) => {
+            Object.entries(dayData).forEach(([domain, info]) => {
+                if (!weeklyData[domain]) {
+                    weeklyData[domain] = 0;
+                }
+                weeklyData[domain] += info.totalSeconds || 0;
+            });
+        });
+        
+        // Sort and display top sites
+        const sortedDomains = Object.entries(weeklyData)
             .filter(([_, seconds]) => seconds > 0)
             .sort(([, a], [, b]) => b - a)
             .slice(0, 5);

@@ -230,12 +230,12 @@ h2 {
 }
 
 .misc-header {
-    padding: 16px 12px 8px 12px;
-    color: #4b5563;
-    font-weight: 600;
     font-size: 14px;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-    margin-top: 8px;
+    font-weight: 600;
+    color: #4b5563;
+    padding: 12px 8px 8px 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 8px;
 }
 
 .reset-btn {

@@ -21,7 +21,9 @@ DEBUG.log('Background script initialized');
 // Initialize state from storage
 async function initializeState() {
     try {
-        const result = await chrome.storage.local.get(['activeTabId', 'activeDomain', 'startTime']);
+        const result = await chrome.storage.local.get(['activeTabId', 'activeDomain', 'startTime', 'lastActiveDate']);
+        await checkDateChange(); // Check for date change on initialization
+        
         if (result.activeTabId && result.activeDomain && result.startTime) {
             activeTab = result.activeTabId;
             activeDomain = result.activeDomain;
@@ -232,6 +234,9 @@ function updateTrackingStatus() {
     const domain = new URL(activeTab.url).hostname;
     const dateKey = new Date().toISOString().slice(0, 10);
     
+    // Check for date change
+    checkDateChange();
+    
     chrome.storage.local.get([dateKey], (result) => {
         if (chrome.runtime.lastError) return;
         const data = result[dateKey] || {};
@@ -333,12 +338,56 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // Alarm setup
-chrome.alarms.create('cleanupOldData', { periodInMinutes: 1440 });
-chrome.alarms.onAlarm.addListener((alarm) => {
+chrome.alarms.create('midnightCheck', { 
+    when: getNextMidnight(),
+    periodInMinutes: 1440 // Run daily
+});
+
+chrome.alarms.create('cleanupOldData', { 
+    periodInMinutes: 1440 
+});
+
+// Helper function to get next midnight timestamp
+function getNextMidnight() {
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 0, 0);
+    return midnight.getTime();
+}
+
+// Add alarm listener
+chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === 'cleanupOldData') {
         cleanupOldData();
+    } else if (alarm.name === 'midnightCheck') {
+        await checkDateChange();
+        // Reset alarm for next midnight
+        chrome.alarms.create('midnightCheck', { 
+            when: getNextMidnight(),
+            periodInMinutes: 1440
+        });
     }
 });
+
+// Add new function to check for date change
+async function checkDateChange() {
+    const currentDate = new Date().toISOString().slice(0, 10);
+    const lastDate = await chrome.storage.local.get(['lastActiveDate']);
+    
+    if (lastDate.lastActiveDate && lastDate.lastActiveDate !== currentDate) {
+        DEBUG.log('Date changed from', lastDate.lastActiveDate, 'to', currentDate);
+        // Save any remaining time from previous day
+        if (activeDomain && startTime && !isTrackingPaused) {
+            const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+            await saveTime(activeDomain, timeSpent);
+        }
+        // Reset tracking state for new day
+        await clearState();
+    }
+    
+    // Update last active date
+    await chrome.storage.local.set({ lastActiveDate: currentDate });
+}
 
 // Initialize on script load
 initializeState();
